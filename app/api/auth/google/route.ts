@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 interface GoogleAuthRequest {
   idToken: string;
@@ -14,6 +13,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'ID token is required' },
         { status: 400 }
+      );
+    }
+
+    // Dynamic import to catch initialization errors
+    let adminAuth, adminDb;
+    try {
+      const firebaseAdmin = await import('@/lib/firebaseAdmin');
+      adminAuth = firebaseAdmin.adminAuth;
+      adminDb = firebaseAdmin.adminDb;
+    } catch (importError: any) {
+      console.error('Firebase Admin Import Error:', importError);
+      return NextResponse.json(
+        {
+          error: 'Server misconfiguration: Firebase Admin SDK failed to load.',
+          details: importError.message
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!adminAuth || !adminDb) {
+      return NextResponse.json(
+        {
+          error: 'Google login temporarily unavailable. Please configure Firebase Admin SDK.',
+          code: 'ADMIN_SDK_NOT_CONFIGURED',
+        },
+        { status: 503 }
       );
     }
 

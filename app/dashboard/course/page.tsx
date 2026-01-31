@@ -12,6 +12,7 @@ import {
   CircleOff,
   Edit3,
   Trash2,
+  Loader,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -25,6 +26,7 @@ interface Course {
   status: string;
   price: string;
   coverImage: string;
+  moduleCount: number;
   createdAt: string;
 }
 
@@ -45,15 +47,16 @@ export default function CoursePage() {
         }
 
         const data = await response.json();
-        const formattedCourses = data.courses.map((course: any) => ({
+        const formattedCourses = (data.courses || []).map((course: any) => ({
           id: course.id,
           title: course.title,
           description: course.description,
           instructor: course.teacherName,
-          students: Math.floor(Math.random() * 1500) + 100, // Mock student count
+          students: course.studentCount || 0, // Use real count from API
           status: "Active",
           price: course.price,
           coverImage: course.coverImage,
+          moduleCount: course.moduleCount || 0,
           createdAt: course.createdAt,
         }));
         setCourses(formattedCourses);
@@ -97,9 +100,9 @@ export default function CoursePage() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {loading && (
           <div className="col-span-full flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2A0066] mx-auto mb-4"></div>
-              <p className="text-slate-500">Loading courses...</p>
+            <div className="flex flex-col items-center gap-3">
+              <Loader className="animate-spin text-[#2A0066]" size={32} />
+              <p className="text-slate-500 font-medium">Loading courses...</p>
             </div>
           </div>
         )}
@@ -167,7 +170,7 @@ export default function CoursePage() {
                   </div>
                   <div className="flex items-center gap-2 text-slate-500">
                     <Layers size={16} className="text-[#2A0066]" />
-                    <span className="text-xs font-bold">12 Modules</span>
+                    <span className="text-xs font-bold">{course.moduleCount} Modules</span>
                   </div>
                 </div>
               </div>
@@ -186,9 +189,7 @@ export default function CoursePage() {
                   >
                     <Edit3 size={16} />
                   </button>
-                  <button className="p-2 bg-white text-slate-400 hover:text-red-500 rounded-xl border border-slate-100 transition shadow-sm cursor-pointer">
-                    <Trash2 size={16} />
-                  </button>
+
                 </div>
               </div>
             </motion.div>

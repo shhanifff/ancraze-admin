@@ -11,3 +11,6 @@ const NextConfig = {
 };
 
 module.exports = NextConfig;
+
+// Force restart for module resolution update
+

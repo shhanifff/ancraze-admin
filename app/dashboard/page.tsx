@@ -5,9 +5,9 @@ import {
   Users,
   Presentation,
   UserPlus,
-  Wallet,
   MoreHorizontal,
   Plus,
+  Loader,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,13 @@ import { useRouter } from "next/navigation";
 export default function DashboardPage() {
   const [role, setRole] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Real data states
+  const [totalStudents, setTotalStudents] = useState(0);
+  const [totalCourses, setTotalCourses] = useState(0);
+  const [recentStudents, setRecentStudents] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
 
   const router = useRouter();
 
@@ -23,6 +30,74 @@ export default function DashboardPage() {
     setRole(roleValue);
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      fetchDashboardData();
+    }
+  }, [mounted]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch students
+      const studentsRes = await fetch("/api/students?role=student");
+      if (studentsRes.ok) {
+        const studentsData = await studentsRes.json();
+        const students = studentsData.students || [];
+        setTotalStudents(students.length);
+
+        // Get recent students (last 5, sorted by creation date)
+        const sortedStudents = students
+          .sort((a: any, b: any) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+          })
+          .slice(0, 5);
+        setRecentStudents(sortedStudents);
+      }
+
+      // Fetch courses
+      const coursesRes = await fetch("/api/courses");
+      if (coursesRes.ok) {
+        const coursesData = await coursesRes.json();
+        const coursesArray = coursesData.courses || [];
+        setTotalCourses(coursesArray.length);
+        setCourses(coursesArray);
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate this month's new students
+  const getThisMonthStudents = () => {
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+
+    return recentStudents.filter((student) => {
+      const createdDate = new Date(student.createdAt);
+      return createdDate.getMonth() === thisMonth && createdDate.getFullYear() === thisYear;
+    }).length;
+  };
+
+  // Get course name by ID
+  const getCourseName = (courseId: string) => {
+    const course = courses.find((c) => c.id === courseId);
+    return course?.title || "No Course Assigned";
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
 
   if (!mounted) return null;
 
@@ -50,34 +125,34 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Main KPI Grid - 1 col on mobile, 2 on tablet, 4 on desktop */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <KPICard
-          label="Total Students"
-          value="4,280"
-          icon={<Users size={22} />}
-          percentage="+8% from last month"
-        />
-        <KPICard
-          label="Total Classes"
-          value="156"
-          icon={<Presentation size={22} />}
-          percentage="Active Courses"
-        />
-        <KPICard
-          label="This Month Joinees"
-          value="214"
-          icon={<UserPlus size={22} />}
-          percentage="↑ New Registrations"
-          isHighlight
-        />
-        <KPICard
-          label="Total Revenue"
-          value="$12,450"
-          icon={<Wallet size={22} />}
-          percentage="Net Earnings"
-        />
-      </div>
+      {/* Main KPI Grid - 3 cards only */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader size={32} className="animate-spin text-[#2A0066]" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <KPICard
+            label="Total Students"
+            value={totalStudents.toString()}
+            icon={<Users size={22} />}
+            percentage={`${totalStudents} registered`}
+          />
+          <KPICard
+            label="Total Courses"
+            value={totalCourses.toString()}
+            icon={<Presentation size={22} />}
+            percentage="Active Courses"
+          />
+          <KPICard
+            label="This Month Joinees"
+            value={getThisMonthStudents().toString()}
+            icon={<UserPlus size={22} />}
+            percentage="↑ New Registrations"
+            isHighlight
+          />
+        </div>
+      )}
 
       {/* Table Section - Full Width with Horizontal Scroll for Mobile */}
       <div className="bg-white rounded-[24px] md:rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
@@ -90,7 +165,10 @@ export default function DashboardPage() {
               Real-time update of students joining
             </p>
           </div>
-          <button className="text-[#2A0066] font-bold text-xs md:text-sm hover:underline whitespace-nowrap cursor-pointer">
+          <button
+            className="text-[#2A0066] font-bold text-xs md:text-sm hover:underline whitespace-nowrap cursor-pointer"
+            onClick={() => router.push("/dashboard/students")}
+          >
             View All Students
           </button>
         </div>
@@ -101,37 +179,38 @@ export default function DashboardPage() {
             <thead className="bg-slate-50/50">
               <tr className="text-slate-400 text-[9px] md:text-[10px] uppercase tracking-[0.2em] font-black">
                 <th className="px-5 md:px-8 py-4 text-left">Student Name</th>
-                <th className="px-5 md:px-8 py-4 text-left">Selected Course</th>
-                <th className="px-5 md:px-8 py-4 text-left">Enrollment Date</th>
-                <th className="px-5 md:px-8 py-4 text-right">Action</th>
+                <th className="px-5 md:px-8 py-4 text-left">Enrolled Courses</th>
+                <th className="px-5 md:px-8 py-4 text-left">Registration Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              <StudentRow
-                name="Alex Rivera"
-                classType="Fullstack Web Development"
-                date="Jan 12, 2026"
-              />
-              <StudentRow
-                name="Mila Kunis"
-                classType="UI/UX Masterclass"
-                date="Jan 10, 2026"
-              />
-              <StudentRow
-                name="Jordan Singh"
-                classType="Python Data Science"
-                date="Jan 08, 2026"
-              />
-              <StudentRow
-                name="Elena Gilbert"
-                classType="Cloud Architecture"
-                date="Jan 05, 2026"
-              />
-              <StudentRow
-                name="Marcus Wright"
-                classType="Digital Marketing"
-                date="Jan 02, 2026"
-              />
+              {loading ? (
+                <tr>
+                  <td colSpan={3} className="px-8 py-12 text-center">
+                    <Loader size={24} className="animate-spin text-[#2A0066] mx-auto" />
+                  </td>
+                </tr>
+              ) : recentStudents.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-8 py-12 text-center text-slate-400">
+                    No students registered yet
+                  </td>
+                </tr>
+              ) : (
+                recentStudents.map((student) => (
+                  <StudentRow
+                    key={student.id}
+                    name={student.fullName || "Unknown"}
+                    classType={
+                      student.enrolledCourses && student.enrolledCourses.length > 0
+                        ? `${student.enrolledCourses.length} Courses`
+                        : "No Course Assigned"
+                    }
+                    date={formatDate(student.createdAt)}
+                    onClick={() => router.push(`/dashboard/students/${student.id}`)}
+                  />
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -188,13 +267,18 @@ function StudentRow({
   name,
   classType,
   date,
+  onClick,
 }: {
   name: string;
   classType: string;
   date: string;
+  onClick?: () => void;
 }) {
   return (
-    <tr className="hover:bg-slate-50/50 transition-colors group cursor-pointer">
+    <tr
+      className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+      onClick={onClick}
+    >
       <td className="px-5 md:px-8 py-4 md:py-6 ">
         <div className="flex items-center gap-3 md:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-2xl bg-[#2A0066]/5 flex items-center justify-center font-bold text-[#2A0066] border border-[#2A0066]/10 group-hover:bg-[#2A0066] group-hover:text-white transition-all">
@@ -210,11 +294,6 @@ function StudentRow({
       </td>
       <td className="px-5 md:px-8 py-4 md:py-6 text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap">
         {date}
-      </td>
-      <td className="px-5 md:px-8 py-4 md:py-6 text-right">
-        <button className="text-slate-300 hover:text-[#2A0066] transition-colors">
-          <MoreHorizontal size={20} />
-        </button>
       </td>
     </tr>
   );

@@ -10,7 +10,8 @@ import {
   X,
   LogOut,
   ChevronRight,
-  UsersRound 
+  UsersRound,
+  User
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -20,22 +21,38 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [authorized, setAuthorized] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
     const role = Cookies.get("role");
-    if (role === "admin") {
+    setUserRole(role);
+    if (role === "admin" || role === "user") {
       setAuthorized(true);
     } else {
       router.replace("/");
     }
   }, [router]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API to clear server-side cookies
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout API error:', error);
+    }
+
+    // Clear all client-side cookies
     Cookies.remove("role");
+    Cookies.remove("authToken");
+    Cookies.remove("uid");
+
+    // Clear all storage
     localStorage.clear();
     sessionStorage.clear();
-    router.push("/");
+
+    // Close sidebar and redirect
     setOpen(false);
+    router.push("/");
   };
 
   const isActive = (path) => pathname === path;
@@ -127,6 +144,17 @@ export default function DashboardLayout({ children }) {
                       setOpen(false);
                     }}
                   />
+                  {userRole === "admin" && (
+                    <SidebarItem
+                      icon={<User size={20} />}
+                      label="Staff"
+                      active={isActive("/dashboard/staff")}
+                      onClick={() => {
+                        router.push("/dashboard/staff");
+                        setOpen(false);
+                      }}
+                    />
+                  )}
                 </nav>
               </div>
 
@@ -160,7 +188,7 @@ export default function DashboardLayout({ children }) {
               <Menu size={22} />
             </button>
 
-           
+
           </div>
 
           <div className="flex items-center gap-3">
@@ -200,11 +228,10 @@ function SidebarItem({ icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-all duration-200 cursor-pointer ${
-        active
-          ? "bg-white text-[#2A0066] shadow-lg"
-          : "text-white/70 hover:bg-white/10 hover:text-white"
-      }`}
+      className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-all duration-200 cursor-pointer ${active
+        ? "bg-white text-[#2A0066] shadow-lg"
+        : "text-white/70 hover:bg-white/10 hover:text-white"
+        }`}
     >
       <div className="flex items-center gap-3">
         {icon}

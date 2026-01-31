@@ -1,56 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { adminDb } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
-
-let adminDb: any = null;
-let adminStorage: any = null;
-
-const initializeFirebaseAdmin = () => {
-  if (adminDb && adminStorage) return;
-
-  if (
-    process.env.FIREBASE_PRIVATE_KEY &&
-    process.env.FIREBASE_PRIVATE_KEY !== 'your_private_key_here'
-  ) {
-    try {
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-        privateKey = privateKey.slice(1, -1);
-      }
-      privateKey = privateKey.replace(/\\n/g, '\n');
-
-      const serviceAccount = {
-        type: process.env.FIREBASE_TYPE,
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: privateKey,
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: process.env.FIREBASE_AUTH_URI,
-        token_uri: process.env.FIREBASE_TOKEN_URI,
-        auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-        client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-      };
-
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-        });
-      }
-
-      adminDb = admin.firestore();
-      adminStorage = admin.storage();
-    } catch (error) {
-      console.error('❌ Firebase Admin initialization error:', error);
-      throw new Error('Firebase Admin not initialized');
-    }
-  }
-};
 
 export async function POST(request: NextRequest) {
   try {
-    initializeFirebaseAdmin();
-
     if (!adminDb) {
       throw new Error('Firebase Admin services not available');
     }
@@ -63,16 +16,18 @@ export async function POST(request: NextRequest) {
     let moduleTitle = '';
     let videoUrl = '';
     let questions: any[] = [];
+    let duration = '';
 
     try {
       console.log('🔄 Parsing request body...');
       const body = await request.json();
-      
+
       courseId = body.courseId || '';
       moduleTitle = body.moduleTitle || '';
       videoUrl = body.videoUrl || '';
       questions = body.questions || [];
-      
+      duration = body.duration || '';
+
       console.log('✅ Request parsed successfully');
       console.log('  - courseId:', courseId);
       console.log('  - moduleTitle:', moduleTitle);
@@ -108,12 +63,13 @@ export async function POST(request: NextRequest) {
       title: moduleTitle,
       videoUrl: videoUrl || 'no video url',
       questions: questions || [],
+      duration: duration || '',
       createdAt: admin.firestore.Timestamp.now(),
       updatedAt: admin.firestore.Timestamp.now(),
     };
 
     // Add module to Firestore in nested collection
-    const docRef = await adminDb
+    const docRef = await (adminDb as any)
       .collection('courses')
       .doc(courseId)
       .collection('modules')
@@ -144,14 +100,13 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    initializeFirebaseAdmin();
-
     if (!adminDb) {
       throw new Error('Firebase Admin services not available');
     }
 
     const searchParams = request.nextUrl.searchParams;
     const courseId = searchParams.get('courseId');
+    const moduleId = searchParams.get('moduleId');
 
     if (!courseId) {
       return NextResponse.json(
@@ -160,8 +115,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch modules from nested collection
-    const snapshot = await adminDb
+    if (moduleId) {
+      // Fetch single module
+      const doc = await (adminDb as any)
+        .collection('courses')
+        .doc(courseId)
+        .collection('modules')
+        .doc(moduleId)
+        .get();
+
+      if (!doc.exists) {
+        return NextResponse.json({ error: 'Module not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        module: {
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        }
+      }, { status: 200 });
+    }
+
+    // Fetch all modules for course
+    const snapshot = await (adminDb as any)
       .collection('courses')
       .doc(courseId)
       .collection('modules')
@@ -197,8 +176,6 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    initializeFirebaseAdmin();
-
     if (!adminDb) {
       throw new Error('Firebase Admin services not available');
     }
@@ -214,7 +191,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await adminDb
+    await (adminDb as any)
       .collection('courses')
       .doc(courseId)
       .collection('modules')

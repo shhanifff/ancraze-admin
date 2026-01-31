@@ -1,57 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { adminDb, adminStorage } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
-
-// Initialize admin SDK
-let adminDb: any = null;
-let adminStorage: any = null;
-
-const initializeFirebaseAdmin = () => {
-  if (adminDb && adminStorage) return;
-
-  if (
-    process.env.FIREBASE_PRIVATE_KEY &&
-    process.env.FIREBASE_PRIVATE_KEY !== 'your_private_key_here'
-  ) {
-    try {
-      let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-      if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-        privateKey = privateKey.slice(1, -1);
-      }
-      privateKey = privateKey.replace(/\\n/g, '\n');
-
-      const serviceAccount = {
-        type: process.env.FIREBASE_TYPE,
-        project_id: process.env.FIREBASE_PROJECT_ID,
-        private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-        private_key: privateKey,
-        client_email: process.env.FIREBASE_CLIENT_EMAIL,
-        client_id: process.env.FIREBASE_CLIENT_ID,
-        auth_uri: process.env.FIREBASE_AUTH_URI,
-        token_uri: process.env.FIREBASE_TOKEN_URI,
-        auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-        client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-      };
-
-      if (!admin.apps.length) {
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-        });
-      }
-
-      adminDb = admin.firestore();
-      adminStorage = admin.storage();
-    } catch (error) {
-      console.error('❌ Firebase Admin initialization error:', error);
-      throw new Error('Firebase Admin not initialized');
-    }
-  }
-};
 
 export async function POST(request: NextRequest) {
   try {
-    initializeFirebaseAdmin();
-
     if (!adminDb || !adminStorage) {
       throw new Error('Firebase Admin services not available');
     }
@@ -76,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Upload image to Firebase Storage
     try {
-      const bucket = adminStorage.bucket();
+      const bucket = (adminStorage as any).bucket();
       const fileName = `courses/${Date.now()}_${coverImage.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       const file = bucket.file(fileName);
 
@@ -108,7 +60,7 @@ export async function POST(request: NextRequest) {
       updatedAt: admin.firestore.Timestamp.now(),
     };
 
-    const docRef = await adminDb.collection('courses').add(courseData);
+    const docRef = await (adminDb as any).collection('courses').add(courseData);
 
     console.log('✅ Course created successfully with ID:', docRef.id);
 
@@ -135,21 +87,78 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    initializeFirebaseAdmin();
-
     if (!adminDb) {
       throw new Error('Firebase Admin services not available');
     }
 
-    // Fetch all courses from Firestore
-    const snapshot = await adminDb.collection('courses').orderBy('createdAt', 'desc').get();
+    // Check for single course fetch
+    const searchParams = request.nextUrl.searchParams;
+    const courseId = searchParams.get('courseId');
 
-    const courses = snapshot.docs.map((doc: any) => ({
-      id: doc.id,
-      ...doc.data(),
-      // Convert Firestore timestamps to ISO strings
-      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    if (courseId) {
+      const doc = await (adminDb as any).collection('courses').doc(courseId).get();
+      if (!doc.exists) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+      }
+
+      // Fetch modules for this specific course
+      const modulesSnapshot = await (adminDb as any)
+        .collection('courses')
+        .doc(courseId)
+        .collection('modules')
+        .orderBy('createdAt', 'asc')
+        .get();
+
+      const modules = (modulesSnapshot as any).docs.map((mDoc: any) => ({
+        id: mDoc.id,
+        ...mDoc.data(),
+        createdAt: mDoc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      }));
+
+      return NextResponse.json({
+        success: true,
+        course: {
+          id: doc.id,
+          ...doc.data(),
+          modules,
+          createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        }
+      }, { status: 200 });
+    }
+
+    // Fetch all courses from Firestore
+    const snapshot = await (adminDb as any).collection('courses').orderBy('createdAt', 'desc').get();
+
+    const courses = await Promise.all((snapshot as any).docs.map(async (doc: any) => {
+      // Fetch module count for each course from its subcollection
+      const modulesSnapshot = await (adminDb as any)
+        .collection('courses')
+        .doc(doc.id)
+        .collection('modules')
+        .count()
+        .get();
+
+      const moduleCount = modulesSnapshot.data().count;
+
+      // Fetch enrolled students count
+      const studentsSnapshot = await (adminDb as any)
+        .collection('users')
+        .where('role', '==', 'student')
+        .where('enrolledCourses', 'array-contains', doc.id)
+        .count()
+        .get();
+
+      const studentCount = studentsSnapshot.data().count;
+
+      return {
+        id: doc.id,
+        ...doc.data(),
+        moduleCount,
+        studentCount, // Return the real student count
+        // Convert Firestore timestamps to ISO strings
+        createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      };
     }));
 
     return NextResponse.json(
@@ -165,6 +174,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: 'Failed to fetch courses',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    if (!adminDb) {
+      throw new Error('Firebase Admin services not available');
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const courseId = searchParams.get('courseId');
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: 'Missing courseId parameter' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`🗑️ Deleting course: ${courseId}`);
+
+    // Delete the course document
+    await (adminDb as any).collection('courses').doc(courseId).delete();
+
+    console.log('✅ Course deleted successfully');
+
+    return NextResponse.json(
+      { success: true, message: 'Course deleted successfully' },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('❌ Error deleting course:', error);
+    return NextResponse.json(
+      {
+        error: 'Failed to delete course',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

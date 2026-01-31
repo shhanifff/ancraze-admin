@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
 
 interface RegisterRequest {
   email: string;
@@ -26,6 +25,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Password must be at least 6 characters long' },
         { status: 400 }
+      );
+    }
+
+    // Dynamic import to catch initialization errors
+    let adminAuth, adminDb;
+    try {
+      const firebaseAdmin = await import('@/lib/firebaseAdmin');
+      adminAuth = firebaseAdmin.adminAuth;
+      adminDb = firebaseAdmin.adminDb;
+    } catch (importError: any) {
+      console.error('Firebase Admin Import Error:', importError);
+      return NextResponse.json(
+        {
+          error: 'Server misconfiguration: Firebase Admin SDK failed to load.',
+          details: importError.message
+        },
+        { status: 500 }
       );
     }
 
@@ -65,7 +81,7 @@ export async function POST(request: NextRequest) {
       uid: userRecord.uid,
       email: userRecord.email,
       fullName,
-      role: 'user', // Default role
+      role: 'user', // Staff role
       createdAt: new Date(),
       authProvider: 'email',
       photoURL: null,

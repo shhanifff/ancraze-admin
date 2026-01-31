@@ -1,58 +1,67 @@
 import * as admin from 'firebase-admin';
 
-let adminAuth= null;
-let adminDb = null;
+/**
+ * Validates that specific service account information is available in environment variables.
+ * @returns true if the configuration exists, false otherwise.
+ */
+function isConfigured(): boolean {
+  return !!(
+    process.env.FIREBASE_PROJECT_ID &&
+    process.env.FIREBASE_CLIENT_EMAIL &&
+    process.env.FIREBASE_PRIVATE_KEY
+  );
+}
 
-// Only initialize if service account credentials are properly configured
-if (
-  process.env.FIREBASE_PRIVATE_KEY &&
-  process.env.FIREBASE_PRIVATE_KEY !== 'your_private_key_here' &&
-  process.env.FIREBASE_CLIENT_EMAIL &&
-  process.env.FIREBASE_CLIENT_EMAIL !== 'your_client_email_here'
-) {
+/**
+ * Initializes the Firebase Admin SDK if not already initialized.
+ * @returns The initialized admin object or null if not configured.
+ */
+function getAdmin(): typeof admin | null {
+  if (admin.apps.length > 0) {
+    return admin;
+  }
+
+  if (!isConfigured()) {
+    console.warn(
+      'Firebase Admin SDK credentials not configured. Please add FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL to .env.local'
+    );
+    return null;
+  }
+
   try {
-    // Parse the private key, handling both quoted and unquoted values
-    let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-    
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY as string;
+
     // Remove surrounding quotes if present
     if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
       privateKey = privateKey.slice(1, -1);
     }
-    
+
     // Replace escaped newlines with actual newlines
     privateKey = privateKey.replace(/\\n/g, '\n');
 
     const serviceAccount = {
-      type: process.env.FIREBASE_TYPE,
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: privateKey,
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: process.env.FIREBASE_AUTH_URI,
-      token_uri: process.env.FIREBASE_TOKEN_URI,
-      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: privateKey,
     };
 
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-      });
-    }
-    adminAuth = admin.auth();
-    adminDb = admin.firestore();
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    });
+
     console.log('✅ Firebase Admin SDK initialized successfully');
+    return admin;
   } catch (error) {
     console.error('❌ Firebase Admin initialization error:', error);
-    console.warn('Firebase Admin SDK not initialized. Some features will be unavailable.');
+    return null;
   }
-} else {
-  console.warn(
-    '⚠️ Firebase Admin SDK credentials not configured. Please add FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL to .env.local'
-  );
 }
 
-export { adminAuth, adminDb };
-export default admin;
+const initializedAdmin = getAdmin();
 
+export const adminAuth = initializedAdmin ? initializedAdmin.auth() as any : null;
+export const adminDb = initializedAdmin ? initializedAdmin.firestore() as any : null;
+export const adminStorage = initializedAdmin ? initializedAdmin.storage() as any : null;
+
+export default admin;

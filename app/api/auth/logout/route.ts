@@ -10,30 +10,10 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
 
-    // Clear authentication cookies
-    response.cookies.set('authToken', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 0,
-      path: '/',
-    });
-
-    response.cookies.set('role', '', {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 0,
-      path: '/',
-    });
-
-    response.cookies.set('uid', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 0,
-      path: '/',
-    });
+    // Clear authentication cookies with delete method
+    response.cookies.delete('authToken');
+    response.cookies.delete('role');
+    response.cookies.delete('uid');
 
     return response;
   } catch (error: any) {

@@ -55,7 +55,7 @@ export async function PUT(request: NextRequest) {
     console.log('📝 Module UPDATE request received');
 
     const body = await request.json();
-    const { courseId, moduleId, title, questions, videoUrl } = body;
+    const { courseId, moduleId, title, questions, videoUrl, duration } = body;
 
     if (!courseId || !moduleId) {
       return NextResponse.json(
@@ -72,6 +72,7 @@ export async function PUT(request: NextRequest) {
     if (title) updateData.title = title;
     if (questions) updateData.questions = questions;
     if (videoUrl) updateData.videoUrl = videoUrl;
+    if (duration !== undefined) updateData.duration = duration;
 
     // Update module in Firestore
     await adminDb

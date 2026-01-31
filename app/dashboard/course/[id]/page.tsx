@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Plus,
   ChevronRight,
@@ -22,8 +22,9 @@ import { motion, AnimatePresence } from "framer-motion";
 
 export default function CourseDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const courseId = params.id as string;
-  
+
   const [courseTitle, setCourseTitle] = useState("Loading...");
   const [view, setView] = useState("modules");
   const [modules, setModules] = useState<any[]>([]);
@@ -47,11 +48,15 @@ export default function CourseDetailPage() {
   const [editModuleQuestions, setEditModuleQuestions] = useState<any[]>([]);
   const [editModuleVideoUrl, setEditModuleVideoUrl] = useState("");
   const [editModuleVideoFile, setEditModuleVideoFile] = useState<File | null>(null);
+  const [editModuleDuration, setEditModuleDuration] = useState("");
+  const [currentEditQuestion, setCurrentEditQuestion] = useState("");
+  const [currentEditAnswer, setCurrentEditAnswer] = useState("");
 
   // Modal form states
   const [moduleTitle, setModuleTitle] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string>("");
+  const [videoPreview, setVideoPreview] = useState("");
+  const [moduleDuration, setModuleDuration] = useState("");
   const [questions, setQuestions] = useState<
     Array<{ question: string; answer: string }>
   >([]);
@@ -63,16 +68,28 @@ export default function CourseDetailPage() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Fetch course details
         const courseRes = await fetch(`/api/courses?courseId=${courseId}`);
+
         if (courseRes.ok) {
           const courseResData = await courseRes.json();
-          const course = courseResData.courses.find(
-            (c: any) => c.id === courseId
-          );
-          if (course) {
+
+          // The API returns { success: true, course: {...} } when fetching by courseId
+          if (courseResData.course) {
+            const course = courseResData.course;
             setCourseTitle(course.title);
             setCourseData(course);
+          } else if (courseResData.courses) {
+            // Fallback: if API returns courses array
+            const course = courseResData.courses.find(
+              (c: any) => c.id === courseId
+            );
+            if (course) {
+              // console.log("✅ Course Data Found (from array):", course);
+              setCourseTitle(course.title);
+              setCourseData(course);
+            }
+          } else {
+            // console.warn("⚠️ No course data in response");
           }
         }
 
@@ -115,6 +132,17 @@ export default function CourseDetailPage() {
     }
   };
 
+  const addEditQuestion = () => {
+    if (currentEditQuestion.trim() && currentEditAnswer.trim()) {
+      setEditModuleQuestions([
+        ...editModuleQuestions,
+        { question: currentEditQuestion, answer: currentEditAnswer },
+      ]);
+      setCurrentEditQuestion("");
+      setCurrentEditAnswer("");
+    }
+  };
+
   const removeQuestion = (index: number) => {
     setQuestions(questions.filter((_, i) => i !== index));
   };
@@ -123,6 +151,10 @@ export default function CourseDetailPage() {
     e.preventDefault();
     if (!moduleTitle.trim()) {
       alert("Please enter a module title");
+      return;
+    }
+    if (moduleTitle.trim().length < 3) {
+      alert("Module title must be at least 3 characters long");
       return;
     }
 
@@ -158,9 +190,8 @@ export default function CourseDetailPage() {
         moduleTitle,
         videoUrl,
         questions,
+        duration: moduleDuration,
       };
-
-      console.log("📤 Sending module:", modulePayload);
 
       const response = await fetch("/api/modules", {
         method: "POST",
@@ -176,7 +207,6 @@ export default function CourseDetailPage() {
       }
 
       const data = await response.json();
-      console.log("✅ Module created successfully:", data);
 
       // Add new module to list
       setModules([
@@ -186,6 +216,7 @@ export default function CourseDetailPage() {
           title: moduleTitle,
           videoUrl: videoUrl,
           questions: questions,
+          duration: moduleDuration,
           createdAt: new Date().toISOString(),
         }
       ]);
@@ -195,6 +226,7 @@ export default function CourseDetailPage() {
       setVideoFile(null);
       setVideoPreview("");
       setQuestions([]);
+      setModuleDuration("");
       setCurrentQuestion("");
       setCurrentAnswer("");
       setShowModal(false);
@@ -252,6 +284,14 @@ export default function CourseDetailPage() {
       alert("Please enter a course title");
       return;
     }
+    if (editCourseTitle.trim().length < 3) {
+      alert("Course title must be at least 3 characters long");
+      return;
+    }
+    if (!editCoursePrice || parseFloat(editCoursePrice) < 0) {
+      alert("Price must be a valid positive number");
+      return;
+    }
 
     setModalLoading(true);
     try {
@@ -291,11 +331,37 @@ export default function CourseDetailPage() {
     }
   };
 
+  const handleDeleteCourse = async () => {
+    if (!confirm("Are you sure you want to delete this course? This action cannot be undone.")) {
+      return;
+    }
+
+    setModalLoading(true);
+    try {
+      const response = await fetch(`/api/courses?courseId=${courseId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete course");
+      }
+
+      alert("Course deleted successfully!");
+      router.push("/dashboard/course");
+    } catch (error) {
+      console.error("Error deleting course:", error);
+      alert("Error deleting course");
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const openEditModuleModal = (module: any) => {
     setEditingModule(module);
     setEditModuleTitle(module.title);
     setEditModuleQuestions(module.questions || []);
     setEditModuleVideoUrl(module.videoUrl || "");
+    setEditModuleDuration(module.duration || "");
     setShowEditModuleModal(true);
   };
 
@@ -309,6 +375,10 @@ export default function CourseDetailPage() {
   const handleSaveModuleEdits = async () => {
     if (!editModuleTitle.trim()) {
       alert("Please enter a module title");
+      return;
+    }
+    if (editModuleTitle.trim().length < 3) {
+      alert("Module title must be at least 3 characters long");
       return;
     }
 
@@ -342,6 +412,7 @@ export default function CourseDetailPage() {
           title: editModuleTitle,
           questions: editModuleQuestions,
           videoUrl,
+          duration: editModuleDuration,
         }),
       });
 
@@ -354,6 +425,7 @@ export default function CourseDetailPage() {
         title: editModuleTitle,
         questions: editModuleQuestions,
         videoUrl,
+        duration: editModuleDuration,
       };
 
       setModules(modules.map((m) => (m.id === editingModule.id ? updatedModule : m)));
@@ -365,7 +437,7 @@ export default function CourseDetailPage() {
     } finally {
       setModalLoading(false);
     }
-  }; 
+  };
 
   return (
     <div className="max-w-screen-2xl mx-auto px-4 lg:px-6 space-y-8 ">
@@ -379,9 +451,25 @@ export default function CourseDetailPage() {
             <h1 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight">
               {courseTitle}
             </h1>
-            <p className="text-slate-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
-              ID: #{courseId}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
+
+              {courseData?.teacherName && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <p className="text-slate-600 text-xs font-semibold">
+                    Teacher: {courseData.teacherName}
+                  </p>
+                </>
+              )}
+              {courseData?.price !== undefined && courseData?.price !== null && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <p className="text-[#2A0066] text-xs font-bold">
+                    ${Number(courseData.price).toFixed(2)}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -398,30 +486,6 @@ export default function CourseDetailPage() {
                 Manage your course content flow
               </p>
             </div>
-
-            {/* Premium Toggle Switch */}
-            <div className="flex p-1 bg-slate-100 rounded-2xl w-full sm:w-auto">
-              <button
-                onClick={() => setView("modules")}
-                className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-bold transition-all ${
-                  view === "modules"
-                    ? "bg-[#2A0066] text-white shadow-md"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Modules
-              </button>
-              <button
-                onClick={() => setView("questions")}
-                className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-xs font-bold transition-all ${
-                  view === "questions"
-                    ? "bg-[#2A0066] text-white shadow-md"
-                    : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                Questions
-              </button>
-            </div>
           </div>
 
           {/* Animated Content Area */}
@@ -434,65 +498,38 @@ export default function CourseDetailPage() {
                 </div>
               </div>
             ) : (
-              <AnimatePresence mode="wait">
-                {view === "modules" ? (
-                  <motion.div
-                    key="modules-list"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="space-y-4"
-                  >
-                    {modules.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-slate-400">No modules yet</p>
-                      </div>
-                    ) : (
-                      modules.map((module, index) => (
-                        <ModuleItem
-                          key={module.id}
-                          index={String(index + 1).padStart(2, "0")}
-                          title={module.title}
-                          type={module.videoUrl ? "Video Lesson" : "Text Lesson"}
-                          questions={module.questions?.length || 0}
-                          onEdit={() => openEditModuleModal(module)}
-                          onDelete={() => handleDeleteModule(module.id)}
-                        />
-                      ))
-                    )}
-                    <button
-                      onClick={() => setShowModal(true)}
-                      className="w-full py-4 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs font-bold hover:border-[#2A0066] hover:text-[#2A0066] transition-all flex items-center justify-center gap-2"
-                    >
-                      <Plus size={16} /> Add New Module
-                    </button>
-                  </motion.div>
+              <motion.div
+                key="modules-list"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-4"
+              >
+                {modules.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-400">No modules yet</p>
+                  </div>
                 ) : (
-                  <motion.div
-                    key="questions-list"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    className="space-y-4"
-                  >
-                    {modules.flatMap((m) =>
-                      m.questions?.map((q: any, idx: number) => (
-                        <QuestionItem
-                          key={`${m.id}-${idx}`}
-                          title={q.question}
-                          module={m.title}
-                          answer={q.answer}
-                        />
-                      ))
-                    ) || []}
-                    {modules.every((m) => !m.questions?.length) && (
-                      <div className="text-center py-8">
-                        <p className="text-slate-400">No practice questions yet</p>
-                      </div>
-                    )}
-                  </motion.div>
+                  modules.map((module, index) => (
+                    <ModuleItem
+                      key={module.id}
+                      index={String(index + 1).padStart(2, "0")}
+                      title={module.title}
+                      type={module.videoUrl ? "Video Lesson" : "Text Lesson"}
+                      questions={module.questions?.length || 0}
+                      duration={module.duration}
+                      onEdit={() => openEditModuleModal(module)}
+                      onDelete={() => handleDeleteModule(module.id)}
+                    />
+                  ))
                 )}
-              </AnimatePresence>
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="w-full py-4 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs font-bold hover:border-[#2A0066] hover:text-[#2A0066] transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} /> Add New Module
+                </button>
+              </motion.div>
             )}
           </div>
         </div>
@@ -505,9 +542,9 @@ export default function CourseDetailPage() {
               Course Details
             </h3>
             <div className="space-y-4">
-              <DetailField label="Instructor" value={courseData?.instructor || "N/A"} />
+              <DetailField label="Instructor" value={courseData?.teacherName || "N/A"} />
               <DetailField label="Price" value={`$${courseData?.price || "0"}`} />
-              <DetailField label="Modules" value={`${modules.length}`} />
+              <DetailField label="Modules" value={`${modules.length} Modules`} />
               <DetailField label="Last Updated" value="Jan 21, 2026" />
             </div>
             <button
@@ -515,6 +552,14 @@ export default function CourseDetailPage() {
               className="w-full mt-6 py-3 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-800"
             >
               Edit Course Details
+            </button>
+            <button
+              onClick={handleDeleteCourse}
+              disabled={modalLoading}
+              className="w-full mt-3 py-3 border border-red-100 text-red-500 rounded-2xl font-bold text-sm hover:bg-red-50 transition flex items-center justify-center gap-2"
+            >
+              <Trash2 size={16} />
+              Delete Course
             </button>
           </div>
         </div>
@@ -680,6 +725,18 @@ export default function CourseDetailPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Module Duration</label>
+                  <input
+                    type="text"
+                    value={editModuleDuration}
+                    onChange={(e) => setEditModuleDuration(e.target.value)}
+                    placeholder="e.g., 45 mins"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Upload New Video (Optional)</label>
                   <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-[#2A0066] transition">
                     <input
@@ -744,6 +801,35 @@ export default function CourseDetailPage() {
                         />
                       </div>
                     ))}
+                  </div>
+
+                  {/* Add Question in Edit Modal */}
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-bold text-slate-600">Add New Question</p>
+                    <textarea
+                      value={currentEditQuestion}
+                      onChange={(e) => setCurrentEditQuestion(e.target.value)}
+                      placeholder="Enter question..."
+                      rows={2}
+                      disabled={modalLoading}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none resize-none"
+                    />
+                    <textarea
+                      value={currentEditAnswer}
+                      onChange={(e) => setCurrentEditAnswer(e.target.value)}
+                      placeholder="Enter answer..."
+                      rows={2}
+                      disabled={modalLoading}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={addEditQuestion}
+                      disabled={modalLoading || !currentEditQuestion.trim() || !currentEditAnswer.trim()}
+                      className="w-full py-2 border border-[#2A0066] text-[#2A0066] text-xs font-bold rounded-lg hover:bg-[#2A0066]/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add This Question
+                    </button>
                   </div>
                 </div>
 
@@ -817,6 +903,20 @@ export default function CourseDetailPage() {
                     value={moduleTitle}
                     onChange={(e) => setModuleTitle(e.target.value)}
                     placeholder="e.g., Introduction to React Components"
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none"
+                    disabled={modalLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Module Duration
+                  </label>
+                  <input
+                    type="text"
+                    value={moduleDuration}
+                    onChange={(e) => setModuleDuration(e.target.value)}
+                    placeholder="e.g., 45 mins"
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none"
                     disabled={modalLoading}
                   />
@@ -950,6 +1050,7 @@ function ModuleItem({
   title,
   type,
   questions,
+  duration,
   onEdit,
   onDelete,
 }: {
@@ -957,6 +1058,7 @@ function ModuleItem({
   title: string;
   type: string;
   questions?: number;
+  duration?: string;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -972,6 +1074,7 @@ function ModuleItem({
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
             {type}
             {questions !== undefined && ` • ${questions} Questions`}
+            {duration && ` • ${duration}`}
           </p>
         </div>
       </div>
