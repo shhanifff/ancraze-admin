@@ -902,7 +902,7 @@ export default function CourseDetailPage() {
                     type="text"
                     value={moduleTitle}
                     onChange={(e) => setModuleTitle(e.target.value)}
-                    placeholder="e.g., Introduction to React Components"
+                    placeholder="e.g., Introduction to Spanish Basics"
                     className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none"
                     disabled={modalLoading}
                   />

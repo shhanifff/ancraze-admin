@@ -171,7 +171,7 @@ export default function AddCoursePage() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#2A0066] focus:border-transparent outline-none transition text-black font-semibold"
-                                                placeholder="e.g., Advanced Web Development"
+                                                placeholder="e.g : Introduction to English language"
                                             />
                                         </div>
                                     </div>
