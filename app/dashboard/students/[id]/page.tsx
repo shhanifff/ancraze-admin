@@ -27,7 +27,13 @@ interface Student {
     loginId: string;
     deviceId: string | null;
     enrolledCourses: string[];
+    trainerId?: string;
     createdAt: string;
+}
+
+interface Trainer {
+    id: string;
+    fullName: string;
 }
 
 interface Course {
@@ -42,6 +48,7 @@ export default function StudentDetailPage() {
 
     const [student, setStudent] = useState<Student | null>(null);
     const [courses, setCourses] = useState<Course[]>([]);
+    const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [loading, setLoading] = useState(true);
     const [updating, setUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -50,6 +57,7 @@ export default function StudentDetailPage() {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState("");
     const [editCourses, setEditCourses] = useState<string[]>([]);
+    const [editTrainer, setEditTrainer] = useState<string>("");
 
     useEffect(() => {
         fetchData();
@@ -72,9 +80,17 @@ export default function StudentDetailPage() {
             setStudent(studentData.student);
             setCourses(coursesData.courses);
 
+            // Fetch trainers
+            const trainersRes = await fetch("/api/students?role=trainer");
+            if (trainersRes.ok) {
+                const trainersData = await trainersRes.json();
+                setTrainers(trainersData.students || []);
+            }
+
             // Sync edit states
             setEditName(studentData.student.fullName);
             setEditCourses(studentData.student.enrolledCourses || []);
+            setEditTrainer(studentData.student.trainerId || "");
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -91,7 +107,8 @@ export default function StudentDetailPage() {
                 body: JSON.stringify({
                     studentId,
                     fullName: editName,
-                    enrolledCourses: editCourses
+                    enrolledCourses: editCourses,
+                    trainerId: editTrainer || null
                 })
             });
 
@@ -236,6 +253,15 @@ export default function StudentDetailPage() {
                                     bgColor="bg-purple-50"
                                     textColor="text-purple-600"
                                 />
+                                {student.trainerId && (
+                                    <InfoItem
+                                        icon={<User size={18} />}
+                                        label="Assigned Trainer"
+                                        value={trainers.find(t => t.id === student.trainerId)?.fullName || 'Unknown Trainer'}
+                                        bgColor="bg-amber-50"
+                                        textColor="text-amber-600"
+                                    />
+                                )}
                             </div>
                         </div>
 
@@ -354,6 +380,26 @@ export default function StudentDetailPage() {
                                     exit={{ opacity: 0 }}
                                     className="space-y-6"
                                 >
+                                    {/* Trainer Selection */}
+                                    <div>
+                                        <label className="text-[10px] font-black text-[#2A0066] uppercase tracking-[2px] ml-1 block mb-4">Assigned Trainer</label>
+                                        <div className="relative">
+                                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <select
+                                                value={editTrainer}
+                                                onChange={(e) => setEditTrainer(e.target.value)}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#2A0066] outline-none transition-all font-medium appearance-none cursor-pointer text-slate-700"
+                                            >
+                                                <option value="">No Trainer Assigned</option>
+                                                {trainers.map((trainer) => (
+                                                    <option key={trainer.id} value={trainer.id}>
+                                                        {trainer.fullName}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
                                     {/* Course Selection */}
                                     <div>
                                         <label className="text-[10px] font-black text-[#2A0066] uppercase tracking-[2px] ml-1 block mb-4">Select Courses to Assign</label>
@@ -382,6 +428,7 @@ export default function StudentDetailPage() {
                                                 onClick={() => {
                                                     setIsEditing(false);
                                                     setEditCourses(student.enrolledCourses || []);
+                                                    setEditTrainer(student.trainerId || "");
                                                 }}
                                                 className="flex-1 px-4 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all"
                                             >

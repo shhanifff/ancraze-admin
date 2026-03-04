@@ -49,15 +49,19 @@ export default function StaffPage() {
     const fetchStaff = async () => {
         try {
             setLoading(true);
-            const response = await fetch("/api/students?role=user");
-            if (!response.ok) throw new Error("Failed to fetch staff");
+            const response = await fetch("/api/students?role=trainer");
+            if (!response.ok) throw new Error("Failed to fetch trainers");
             const data = await response.json();
 
             // Also fetch admins to show complete team
             const adminResponse = await fetch("/api/students?role=admin");
             const adminData = await adminResponse.json();
 
-            setStaffList([...(adminData.students || []), ...(data.students || [])]);
+            // Fetch new users (potential trainers)
+            const userResponse = await fetch("/api/students?role=user");
+            const userData = await userResponse.json();
+
+            setStaffList([...(adminData.students || []), ...(data.students || []), ...(userData.students || [])]);
         } catch (err: any) {
             setError(err.message);
         } finally {
@@ -138,10 +142,10 @@ export default function StaffPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">
-                        Staff <span className="text-[#2A0066]">Management</span>
+                        Team <span className="text-[#2A0066]">Management</span>
                     </h1>
                     <p className="text-slate-500 mt-1 text-sm font-medium">
-                        View and manage your team members and staff access.
+                        Manage trainers, admins, and promote new members.
                     </p>
                 </div>
 
@@ -154,7 +158,7 @@ export default function StaffPage() {
                         <UserCheck size={24} />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Staff</p>
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Members</p>
                         <h3 className="text-2xl font-black text-slate-900">{staffList.length}</h3>
                     </div>
                 </div>
@@ -222,8 +226,12 @@ export default function StaffPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-5">
-                                            <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full uppercase">
-                                                {staff.role}
+                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase ${
+                                                staff.role === 'admin' ? 'text-purple-600 bg-purple-50' :
+                                                staff.role === 'trainer' ? 'text-amber-600 bg-amber-50' :
+                                                'text-slate-500 bg-slate-100'
+                                            }`}>
+                                                {staff.role === 'user' ? 'New User' : staff.role}
                                             </span>
                                         </td>
                                         <td className="px-6 py-5">
@@ -266,7 +274,7 @@ export default function StaffPage() {
                             <div className="p-8">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                                        Manage <span className="text-[#2A0066]">Staff</span>
+                                        Manage <span className="text-[#2A0066]">Team Member</span>
                                     </h2>
                                     <button
                                         onClick={() => setIsModalOpen(false)}
@@ -325,14 +333,14 @@ export default function StaffPage() {
                                                         <span className={`text-xs font-bold ${newRole === "admin" ? "text-[#2A0066]" : "text-slate-500"}`}>Admin</span>
                                                     </button>
                                                     <button
-                                                        onClick={() => setNewRole("user")}
-                                                        className={`p-3 rounded-2xl border-2 transition-all flex items-center gap-2 ${newRole === "user"
+                                                        onClick={() => setNewRole("trainer")}
+                                                        className={`p-3 rounded-2xl border-2 transition-all flex items-center gap-2 ${newRole === "trainer"
                                                             ? "border-[#2A0066] bg-[#2A0066]/5"
                                                             : "border-slate-50 hover:border-slate-100"
                                                             }`}
                                                     >
-                                                        <div className={`w-2 h-2 rounded-full ${newRole === "user" ? "bg-[#2A0066]" : "bg-slate-300"}`} />
-                                                        <span className={`text-xs font-bold ${newRole === "user" ? "text-[#2A0066]" : "text-slate-500"}`}>Staff</span>
+                                                        <div className={`w-2 h-2 rounded-full ${newRole === "trainer" ? "bg-[#2A0066]" : "bg-slate-300"}`} />
+                                                        <span className={`text-xs font-bold ${newRole === "trainer" ? "text-[#2A0066]" : "text-slate-500"}`}>Trainer</span>
                                                     </button>
                                                 </div>
                                             </div>

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
             }))
             .filter((u: any) => {
                 if (requestedRole) return u.role === requestedRole;
-                return u.role === 'student' || u.role === 'user' || !u.role;
+                return u.role === 'student' || u.role === 'user' || u.role === 'trainer' || !u.role;
             });
 
         return NextResponse.json({ success: true, students }, { status: 200 });
@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
             fullName,
             loginId, // Store the plain loginId for admin reference
             role: 'student',
+            trainerId: body.trainerId || null,
             enrolledCourses: enrolledCourses || [],
             createdAt: new Date(),
             authProvider: 'email',
@@ -154,6 +155,8 @@ export async function PATCH(request: NextRequest) {
         if (enrolledCourses) updateData.enrolledCourses = enrolledCourses;
         if (resetDeviceId) updateData.deviceId = null; // Option to clear deviceId for student
         if (role) updateData.role = role;
+        const { trainerId } = body;
+        if (trainerId !== undefined) updateData.trainerId = trainerId;
 
         await (adminDb as any).collection('users').doc(studentId).update(updateData);
 

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       uid: userRecord.uid,
       email: userRecord.email,
       fullName,
-      role: 'user', // Staff role
+      role: 'user', // Default to User role
       createdAt: new Date(),
       authProvider: 'email',
       photoURL: null,

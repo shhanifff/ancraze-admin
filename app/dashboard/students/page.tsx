@@ -12,7 +12,8 @@ import {
     Key,
     Users,
     ChevronRight,
-    SearchX
+    SearchX,
+    UserCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ interface Student {
     email: string;
     loginId: string;
     enrolledCourses: string[];
+    trainerId?: string;
     createdAt: string;
 }
 
@@ -31,10 +33,16 @@ interface Course {
     title: string;
 }
 
+interface Trainer {
+    id: string;
+    fullName: string;
+}
+
 export default function StudentsPage() {
     const router = useRouter();
     const [students, setStudents] = useState<Student[]>([]);
     const [courses, setCourses] = useState<Course[]>([]);
+    const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -47,10 +55,12 @@ export default function StudentsPage() {
     const [fullName, setFullName] = useState("");
     const [email, setEmail] = useState("");
     const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+    const [selectedTrainer, setSelectedTrainer] = useState<string>("");
 
     useEffect(() => {
         fetchStudents();
         fetchCourses();
+        fetchTrainers();
     }, []);
 
     const fetchStudents = async () => {
@@ -78,6 +88,17 @@ export default function StudentsPage() {
         }
     };
 
+    const fetchTrainers = async () => {
+        try {
+            const response = await fetch("/api/students?role=trainer");
+            if (!response.ok) throw new Error("Failed to fetch trainers");
+            const data = await response.json();
+            setTrainers(data.students || []);
+        } catch (err: any) {
+            console.error("Error fetching trainers:", err);
+        }
+    };
+
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!fullName || !email) return;
@@ -91,6 +112,7 @@ export default function StudentsPage() {
                     fullName,
                     email,
                     enrolledCourses: selectedCourses,
+                    trainerId: selectedTrainer || null,
                 }),
             });
 
@@ -102,6 +124,7 @@ export default function StudentsPage() {
             setFullName("");
             setEmail("");
             setSelectedCourses([]);
+            setSelectedTrainer("");
             fetchStudents();
         } catch (err: any) {
             alert(err.message);
@@ -217,6 +240,11 @@ export default function StudentsPage() {
                                                 <div>
                                                     <p className="font-bold text-slate-900 leading-none">{student.fullName}</p>
                                                     <p className="text-[11px] text-slate-400 mt-1">{student.email}</p>
+                                                    {student.trainerId && (
+                                                        <p className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded w-fit mt-1">
+                                                            Trainer: {trainers.find(t => t.id === student.trainerId)?.fullName || 'Unknown'}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
@@ -324,6 +352,28 @@ export default function StudentsPage() {
                                         </div>
                                     </div>
 
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Assign Trainer (Optional)</label>
+                                        <div className="relative">
+                                            <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <select
+                                                value={selectedTrainer}
+                                                onChange={(e) => setSelectedTrainer(e.target.value)}
+                                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-[#2A0066] outline-none transition-all font-medium appearance-none cursor-pointer text-slate-700"
+                                            >
+                                                <option value="">Select a Trainer</option>
+                                                {trainers.map((trainer) => (
+                                                    <option key={trainer.id} value={trainer.id}>
+                                                        {trainer.fullName}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                <ChevronRight size={16} className="text-slate-400 rotate-90" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
                                     <div className="space-y-4">
                                         <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1 flex justify-between">
                                             Assign Courses
