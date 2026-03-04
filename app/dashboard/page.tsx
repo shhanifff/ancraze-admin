@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const [role, setRole] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +28,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const roleValue = Cookies.get("role");
+    const nameValue = Cookies.get("fullName");
     setRole(roleValue || null);
+    setFullName(nameValue || null);
     setMounted(true);
   }, []);
 
@@ -119,7 +122,7 @@ export default function DashboardPage() {
           <p className="text-slate-500 mt-1 text-sm font-medium">
             Welcome back,{" "}
             <span className="text-[#2A0066] font-bold uppercase">
-              {role || "Admin"}
+              {fullName || role || "Admin"}
             </span>
           </p>
         </div>
