@@ -13,7 +13,7 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
-  const [role, setRole] = useState(null);
+  const [role, setRole] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +27,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const roleValue = Cookies.get("role");
-    setRole(roleValue);
+    setRole(roleValue || null);
     setMounted(true);
   }, []);
 
@@ -82,7 +82,10 @@ export default function DashboardPage() {
 
     return recentStudents.filter((student) => {
       const createdDate = new Date(student.createdAt);
-      return createdDate.getMonth() === thisMonth && createdDate.getFullYear() === thisYear;
+      return (
+        createdDate.getMonth() === thisMonth &&
+        createdDate.getFullYear() === thisYear
+      );
     }).length;
   };
 
@@ -96,7 +99,11 @@ export default function DashboardPage() {
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
   };
 
   if (!mounted) return null;
@@ -179,20 +186,30 @@ export default function DashboardPage() {
             <thead className="bg-slate-50/50">
               <tr className="text-slate-400 text-[9px] md:text-[10px] uppercase tracking-[0.2em] font-black">
                 <th className="px-5 md:px-8 py-4 text-left">Student Name</th>
-                <th className="px-5 md:px-8 py-4 text-left">Enrolled Courses</th>
-                <th className="px-5 md:px-8 py-4 text-left">Registration Date</th>
+                <th className="px-5 md:px-8 py-4 text-left">
+                  Enrolled Courses
+                </th>
+                <th className="px-5 md:px-8 py-4 text-left">
+                  Registration Date
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
                 <tr>
                   <td colSpan={3} className="px-8 py-12 text-center">
-                    <Loader size={24} className="animate-spin text-[#2A0066] mx-auto" />
+                    <Loader
+                      size={24}
+                      className="animate-spin text-[#2A0066] mx-auto"
+                    />
                   </td>
                 </tr>
               ) : recentStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-8 py-12 text-center text-slate-400">
+                  <td
+                    colSpan={3}
+                    className="px-8 py-12 text-center text-slate-400"
+                  >
                     No students registered yet
                   </td>
                 </tr>
@@ -202,12 +219,15 @@ export default function DashboardPage() {
                     key={student.id}
                     name={student.fullName || "Unknown"}
                     classType={
-                      student.enrolledCourses && student.enrolledCourses.length > 0
+                      student.enrolledCourses &&
+                      student.enrolledCourses.length > 0
                         ? `${student.enrolledCourses.length} Courses`
                         : "No Course Assigned"
                     }
                     date={formatDate(student.createdAt)}
-                    onClick={() => router.push(`/dashboard/students/${student.id}`)}
+                    onClick={() =>
+                      router.push(`/dashboard/students/${student.id}`)
+                    }
                   />
                 ))
               )}
